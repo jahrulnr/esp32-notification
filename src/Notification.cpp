@@ -43,6 +43,31 @@ bool Notification::send(const char* key, void* data) {
     return true;
 }
 
+bool Notification::send(const char* key, int signal) {
+    if (mutex == nullptr || key == nullptr) {
+        return false;
+    }
+    
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to take mutex for send");
+        return false;
+    }
+    
+    // Remove existing notification with same key if it exists
+    auto it = notifications.find(key);
+    if (it != notifications.end()) {
+        notifications.erase(it);
+    }
+    
+    // Add new notification
+    notifications.emplace(key, NotificationItem(signal));
+    
+    ESP_LOGD(TAG, "Notification sent - key: %s, signal: %d", key, signal);
+    
+    xSemaphoreGive(mutex);
+    return true;
+}
+
 void* Notification::consume(const char* key, TickType_t timeout_ticks) {
     if (mutex == nullptr || key == nullptr) {
         return nullptr;
@@ -79,7 +104,58 @@ void* Notification::consume(const char* key, TickType_t timeout_ticks) {
     return nullptr;
 }
 
+int Notification::signal(const char* key, TickType_t timeout_ticks) {
+    if (mutex == nullptr || key == nullptr) {
+        return -1;
+    }
+    
+    TickType_t start_time = xTaskGetTickCount();
+    
+    while (true) {
+        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            auto it = notifications.find(key);
+            if (it != notifications.end()) {
+                int signal = it->second.signal;
+                notifications.erase(it);
+                
+                ESP_LOGD(TAG, "Notification consumed - key: %s, signal: %p", key, signal);
+                
+                xSemaphoreGive(mutex);
+                return signal;
+            }
+            xSemaphoreGive(mutex);
+        }
+        
+        // Check timeout
+        TickType_t elapsed = xTaskGetTickCount() - start_time;
+        if (elapsed >= timeout_ticks) {
+            ESP_LOGD(TAG, "Timeout waiting for notification: %s", key);
+            break;
+        }
+        
+        // Small delay to prevent busy waiting
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    
+    return -1;
+}
+
 bool Notification::has(const char* key) {
+    if (mutex == nullptr || key == nullptr) {
+        return false;
+    }
+    
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        return false;
+    }
+    
+    bool exists = notifications.find(key) != notifications.end();
+    
+    xSemaphoreGive(mutex);
+    return exists;
+}
+
+bool Notification::hasSignal(const char* key) {
     if (mutex == nullptr || key == nullptr) {
         return false;
     }

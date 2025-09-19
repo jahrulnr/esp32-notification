@@ -17,9 +17,11 @@ class Notification {
 private:
     struct NotificationItem {
         void* data;
+        int signal;
         TickType_t timestamp;
         
         NotificationItem(void* d) : data(d), timestamp(xTaskGetTickCount()) {}
+        NotificationItem(int s) : signal(s), timestamp(xTaskGetTickCount()) {}
     };
     
     std::map<std::string, NotificationItem> notifications;
@@ -46,6 +48,7 @@ public:
      * @return true if sent successfully, false otherwise
      */
     bool send(const char* key, void* data);
+    bool send(const char* key, int signal);
     
     /**
      * @brief Consume a notification by key (FreeRTOS style)
@@ -56,6 +59,7 @@ public:
      * @note You need to cast the returned void* to your expected type
      */
     void* consume(const char* key, TickType_t timeout_ticks = pdMS_TO_TICKS(100));
+    int signal(const char* key, TickType_t timeout_ticks = pdMS_TO_TICKS(100));
     
     /**
      * @brief Check if a notification exists
@@ -64,6 +68,7 @@ public:
      * @return true if notification exists, false otherwise
      */
     bool has(const char* key);
+    bool hasSignal(const char* key);
     
     /**
      * @brief Remove a notification without consuming it
