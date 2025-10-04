@@ -112,7 +112,7 @@ int Notification::signal(const char* key, TickType_t timeout_ticks) {
     TickType_t start_time = xTaskGetTickCount();
     
     while (true) {
-        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(0)) == pdTRUE) {
             auto it = notifications.find(key);
             if (it != notifications.end()) {
                 int signal = it->second.signal;
